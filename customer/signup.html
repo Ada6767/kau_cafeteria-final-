@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up – KAU Cafeteria</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../CSS/style.css">
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    <div class="container">
+        <header>
+            <div class="logo-area">
+                <div class="logo-icon">🍽️</div>
+                <div>
+                    <h1>KAU Cafeteria</h1>
+                    <span class="tagline">Create Account</span>
+                </div>
+            </div>
+            <a href="../index.html" class="btn secondary">← Home</a>
+        </header>
+        <main>
+            <div class="form-container">
+                <h2>Create Account</h2>
+                <div id="alert-container"></div>
+                <form id="signup-form">
+                    <div class="form-group">
+                        <label for="name">Full Name</label>
+                        <input type="text" id="name" placeholder="Mohammed Al-Ghamdi" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" placeholder="you@stu.kau.edu.sa" required>
+                        <p class="form-hint">🎓 Use your <strong>@stu.kau.edu.sa</strong> email for 50% student discount!</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" placeholder="Create a strong password" required minlength="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm-password">Confirm Password</label>
+                        <input type="password" id="confirm-password" placeholder="Repeat your password" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn" id="signup-btn">Create Account</button>
+                        <a href="login.html" style="color:var(--primary);font-weight:600;font-size:0.9rem">Already have an account?</a>
+                    </div>
+                </form>
+            </div>
+        </main>
+        <footer><p>© 2025 KAU Cafeteria</p></footer>
+    </div>
+
+    <script src="../JS/database.js"></script>
+    <script src="../JS/auth.js"></script>
+    <script>
+        document.getElementById('signup-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn      = document.getElementById('signup-btn');
+            const alertC   = document.getElementById('alert-container');
+            const name     = document.getElementById('name').value;
+            const email    = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const confirm  = document.getElementById('confirm-password').value;
+
+            function showAlert(msg, type) {
+                const el = document.createElement('div');
+                el.className = `alert alert-${type}`;
+                el.textContent = msg;
+                alertC.innerHTML = '';
+                alertC.appendChild(el);
+            }
+
+            if (password !== confirm) { showAlert('Passwords do not match.', 'danger'); return; }
+
+            btn.textContent = 'Creating account…';
+            btn.disabled = true;
+
+            const result = await Auth.customer.register(email, password, name);
+            if (result.success) {
+                await Auth.customer.login(email, password);
+                window.location.href = 'dashboard.html';
+            } else {
+                btn.textContent = 'Create Account';
+                btn.disabled = false;
+                showAlert(result.message, 'danger');
+            }
+        });
+    </script>
+</body>
+</html>

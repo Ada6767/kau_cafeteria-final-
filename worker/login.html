@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worker Login – KAU Cafeteria</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../CSS/style.css">
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    <div class="container">
+        <header>
+            <div class="logo-area">
+                <div class="logo-icon">👷</div>
+                <div>
+                    <h1>KAU Cafeteria</h1>
+                    <span class="tagline">Worker Login</span>
+                </div>
+            </div>
+            <a href="../index.html" class="btn secondary">← Home</a>
+        </header>
+        <main>
+            <div class="form-container">
+                <h2>Worker Portal</h2>
+                <div id="alert-container"></div>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" value="worker@kau.edu.sa" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" value="worker123" required>
+                    </div>
+                    <div class="form-hint" style="margin-bottom:1rem">
+                        Default credentials are pre-filled above.
+                    </div>
+                    <button type="submit" class="btn teal" id="login-btn" style="width:100%">Login</button>
+                </form>
+            </div>
+        </main>
+        <footer><p>© 2025 KAU Cafeteria</p></footer>
+    </div>
+
+    <script src="../JS/database.js"></script>
+    <script src="../JS/auth.js"></script>
+    <script>
+        if (Auth.worker.getCurrentWorker()) window.location.href = 'scanner.html';
+
+        document.getElementById('login-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('login-btn');
+            btn.textContent = 'Logging in…';
+            btn.disabled = true;
+
+            const result = await Auth.worker.login(
+                document.getElementById('email').value,
+                document.getElementById('password').value
+            );
+
+            if (result.success) {
+                window.location.href = 'scanner.html';
+            } else {
+                btn.textContent = 'Login';
+                btn.disabled = false;
+                const el = document.createElement('div');
+                el.className = 'alert alert-danger';
+                el.textContent = result.message;
+                const c = document.getElementById('alert-container');
+                c.innerHTML = '';
+                c.appendChild(el);
+            }
+        });
+    </script>
+</body>
+</html>

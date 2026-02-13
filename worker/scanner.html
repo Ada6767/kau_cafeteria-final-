@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket Scanner – KAU Cafeteria</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../CSS/style.css">
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <style>
+        /* ── Toast Overlay ── */
+        #scan-toast {
+            position: fixed;
+            top: -180px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            width: min(420px, 92vw);
+            border-radius: 20px;
+            padding: 1.5rem 1.8rem;
+            display: flex;
+            align-items: center;
+            gap: 1.1rem;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.28);
+            transition: top 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+            overflow: hidden;
+        }
+        #scan-toast.show { top: 20px; }
+        #scan-toast.success { background: linear-gradient(135deg,#145A22,#2E7D32); color:#fff; }
+        #scan-toast.error   { background: linear-gradient(135deg,#7F0000,#C62828); color:#fff; }
+
+        .toast-icon  { font-size: 2.8rem; line-height:1; flex-shrink:0; }
+        .toast-body  { flex:1; }
+        .toast-title { font-family:'Playfair Display',serif; font-size:1.15rem; font-weight:700; margin-bottom:0.2rem; }
+        .toast-sub   { font-size:0.88rem; opacity:0.88; line-height:1.4; }
+
+        .toast-progress {
+            position:absolute; bottom:0; left:0;
+            height:4px; width:100%;
+            background:rgba(255,255,255,0.35);
+            transform-origin:left;
+            border-radius:0 0 20px 20px;
+        }
+
+        /* ── Scanner ── */
+        .scanner-wrap { position:relative; max-width:460px; margin:0 auto; }
+        #qr-reader    { width:100%; border-radius:12px; overflow:hidden; }
+        #qr-reader__header_message { display:none !important; }
+
+        .pause-overlay {
+            display:none;
+            position:absolute; inset:0;
+            background:rgba(0,0,0,0.55);
+            border-radius:12px;
+            align-items:center; justify-content:center;
+            color:#fff; font-size:1rem; font-weight:600; gap:0.5rem;
+        }
+        .pause-overlay.visible { display:flex; }
+
+        /* ── History table ── */
+        .history-table-wrap { overflow-x:auto; }
+
+        .scan-history-table {
+            width:100%; border-collapse:collapse; font-size:0.88rem;
+        }
+        .scan-history-table th {
+            background:var(--light-bg); padding:0.7rem 0.9rem;
+            text-align:left; font-weight:600; color:var(--muted);
+            border-bottom:2px solid var(--border); white-space:nowrap;
+        }
+        .scan-history-table td {
+            padding:0.75rem 0.9rem; border-bottom:1px solid var(--border); vertical-align:middle;
+        }
+        .scan-history-table tr:last-child td { border-bottom:none; }
+
+        .badge {
+            display:inline-flex; align-items:center; gap:0.3rem;
+            padding:0.25rem 0.75rem; border-radius:99px;
+            font-size:0.8rem; font-weight:600; white-space:nowrap;
+        }
+        .badge-redeemed { background:rgba(46,125,50,0.12); color:#1B5E20; }
+        .badge-unused   { background:rgba(184,134,11,0.12); color:#5D4037; }
+        .badge-invalid  { background:rgba(198,40,40,0.10); color:#7F0000; }
+
+        .ticket-id-cell {
+            font-family:monospace; font-size:0.78rem; color:var(--muted);
+            max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Toast -->
+<div id="scan-toast">
+    <div class="toast-icon" id="toast-icon">✅</div>
+    <div class="toast-body">
+        <div class="toast-title" id="toast-title">Ticket Valid</div>
+        <div class="toast-sub"   id="toast-sub">Meal approved</div>
+    </div>
+    <div class="toast-progress" id="toast-progress"></div>
+</div>
+
+<div class="bg-pattern"></div>
+<div class="container">
+
+    <header>
+        <div class="logo-area">
+            <div class="logo-icon">👷</div>
+            <div>
+                <h1>Ticket Scanner</h1>
+                <span class="tagline" id="worker-name">KAU Cafeteria</span>
+            </div>
+        </div>
+        <div class="user-actions">
+            <button id="logout-btn" class="btn secondary">Logout</button>
+        </div>
+    </header>
+
+    <main>
+
+        <!-- Scanner section -->
+        <div class="scanner-section">
+            <h2>📷 Scan Customer Ticket</h2>
+            <p style="color:var(--muted);margin-bottom:1.2rem">Point the camera at the customer's QR code.</p>
+
+            <div class="scanner-wrap">
+                <div id="qr-reader"></div>
+                <div class="pause-overlay" id="pause-overlay">⏸ Processing…</div>
+            </div>
+
+            <div class="manual-entry">
+                <h3 style="font-size:1rem;margin-bottom:0.5rem">⌨️ Manual Entry</h3>
+                <p style="color:var(--muted);font-size:0.88rem;margin-bottom:0.8rem">
+                    If scanning doesn't work, type the <strong>Ticket ID</strong> shown on the customer's dashboard:
+                </p>
+                <div class="form-group" style="display:flex;gap:0.7rem;flex-wrap:wrap">
+                    <input type="text" id="ticket-code" placeholder="ticket_1234567890_abc123" style="flex:1;min-width:200px">
+                    <button id="validate-ticket-btn" class="btn">Validate</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- All Tickets -->
+        <div class="history-section">
+            <h2>🎫 All Customer Tickets</h2>
+            <p style="color:var(--muted);font-size:0.88rem;margin-bottom:1.2rem">
+                Every ticket purchased. Redeemed ones are automatically marked.
+            </p>
+            <div class="history-table-wrap" id="all-tickets-container"></div>
+        </div>
+
+        <!-- Scan Log -->
+        <div class="history-section">
+            <h2>🕐 Today's Scan Log</h2>
+            <div id="history-container"></div>
+        </div>
+
+    </main>
+    <footer><p>© 2025 KAU Cafeteria</p></footer>
+</div>
+
+<script src="../JS/jsonbin-config.js"></script>
+<script src="../JS/database.js"></script>
+<script src="../JS/auth.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // Auth
+    const currentWorker = Auth.worker.getCurrentWorker();
+    if (!currentWorker) { window.location.href = 'login.html'; return; }
+    document.getElementById('worker-name').textContent = currentWorker.name;
+
+    // Cooldown state — prevents rapid-fire scanning
+    let isProcessing = false;
+    const COOLDOWN   = 3500; // ms
+
+    if (!localStorage.getItem('scanHistory')) {
+        localStorage.setItem('scanHistory', JSON.stringify([]));
+    }
+
+    loadAllTickets();
+    loadScanHistory();
+
+    // ── Start QR scanner ──
+    const scanner = new Html5Qrcode("qr-reader");
+    scanner.start(
+        { facingMode: "environment" },
+        { fps: 5, qrbox: { width: 230, height: 230 } },
+        function onScanSuccess(text) {
+            if (isProcessing) return;           // 🔒 ignore while cooling down
+            isProcessing = true;
+            document.getElementById('pause-overlay').classList.add('visible');
+
+            validateTicket(text.trim());  // async — fire and forget is fine here
+
+            setTimeout(() => {
+                isProcessing = false;
+                document.getElementById('pause-overlay').classList.remove('visible');
+            }, COOLDOWN);
+        }
+    ).catch(err => console.warn('Camera start error:', err));
+
+    // ── Validate ──
+    async function validateTicket(ticketId) {
+        const ticket = await DB.tickets.findById(ticketId);
+
+        if (!ticket) {
+            showToast('error', '❌', 'Invalid Ticket', 'This code was not found in the system.');
+            logScan(ticketId, false, 'Ticket not found');
+            return;
+        }
+
+        if (ticket.used) {
+            const when = new Date(ticket.usedAt).toLocaleString();
+            showToast('error', '🚫', 'Already Redeemed', `Used on ${when}`);
+            logScan(ticketId, false, 'Already redeemed');
+            return;
+        }
+
+        const updated = await DB.tickets.markAsUsed(ticketId);
+        if (updated) {
+            const users = await DB.users.getAll();
+            const user  = users.find(u => u.id === ticket.userId);
+            const name  = user ? user.name : 'Unknown Customer';
+            const meal  = ticket.mealType.charAt(0).toUpperCase() + ticket.mealType.slice(1);
+            showToast('success', '✅', 'Order Scanned Successfully!', `${meal}  ·  ${name}`);
+            logScan(ticketId, true, `${meal} for ${name}`);
+            loadAllTickets();
+        } else {
+            showToast('error', '⚠️', 'Processing Error', 'Could not update ticket. Try again.');
+            logScan(ticketId, false, 'Processing error');
+        }
+    }
+
+    // ── Toast ──
+    let toastTimer = null;
+    function showToast(type, icon, title, sub) {
+        const toast    = document.getElementById('scan-toast');
+        const progress = document.getElementById('toast-progress');
+
+        document.getElementById('toast-icon').textContent  = icon;
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-sub').textContent   = sub;
+
+        // Reset progress animation
+        progress.style.transition = 'none';
+        progress.style.transform  = 'scaleX(1)';
+
+        toast.className = `show ${type}`;
+
+        requestAnimationFrame(() => {
+            progress.style.transition = `transform ${COOLDOWN}ms linear`;
+            progress.style.transform  = 'scaleX(0)';
+        });
+
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { toast.className = type; }, COOLDOWN);
+    }
+
+    // ── Manual entry ──
+    document.getElementById('validate-ticket-btn').addEventListener('click', () => {
+        const val = document.getElementById('ticket-code').value.trim();
+        if (!val) return;
+        validateTicket(val);
+        document.getElementById('ticket-code').value = '';
+    });
+    document.getElementById('ticket-code').addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('validate-ticket-btn').click();
+    });
+
+    // ── Logout ──
+    document.getElementById('logout-btn').addEventListener('click', () => {
+        scanner.stop().finally(() => {
+            Auth.worker.logout();
+            window.location.href = 'login.html';
+        });
+    });
+
+    // ── All tickets table ──
+    async function loadAllTickets() {
+        const container  = document.getElementById('all-tickets-container');
+        const allTickets = await DB.tickets.getAll();
+
+        if (allTickets.length === 0) {
+            container.innerHTML = '<p class="no-history">No tickets purchased yet.</p>';
+            return;
+        }
+
+        // Unused first, then newest first
+        const sorted = [...allTickets].sort((a, b) => {
+            if (a.used !== b.used) return a.used ? 1 : -1;
+            return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+
+        const allUsers = await DB.users.getAll();
+        const rows = sorted.map(t => {
+            const user      = allUsers.find(u => u.id === t.userId);
+            const name      = user ? user.name : 'Unknown';
+            const meal      = t.mealType.charAt(0).toUpperCase() + t.mealType.slice(1);
+            const purchased = new Date(t.createdAt).toLocaleDateString();
+            const shortId   = t.id.substring(0, 22) + '…';
+            const badge     = t.used
+                ? `<span class="badge badge-redeemed">✅ Redeemed</span>`
+                : `<span class="badge badge-unused">🎟 Unused</span>`;
+            const redeemedAt = t.used ? new Date(t.usedAt).toLocaleString() : '—';
+
+            return `<tr>
+                <td>${name}</td>
+                <td>${meal}</td>
+                <td>${purchased}</td>
+                <td>${badge}</td>
+                <td style="font-size:0.83rem;color:var(--muted)">${redeemedAt}</td>
+                <td class="ticket-id-cell" title="${t.id}">${shortId}</td>
+            </tr>`;
+        }).join('');
+
+        container.innerHTML = `
+            <table class="scan-history-table">
+                <thead>
+                    <tr>
+                        <th>Customer</th>
+                        <th>Meal</th>
+                        <th>Purchased</th>
+                        <th>Status</th>
+                        <th>Redeemed At</th>
+                        <th>Ticket ID</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    }
+
+    // ── Scan log ──
+    function logScan(ticketId, isValid, details) {
+        const history = JSON.parse(localStorage.getItem('scanHistory')) || [];
+        history.unshift({ ticketId, isValid, details, timestamp: new Date().toISOString() });
+        if (history.length > 30) history.splice(30);
+        localStorage.setItem('scanHistory', JSON.stringify(history));
+        loadScanHistory();
+    }
+
+    function loadScanHistory() {
+        const container = document.getElementById('history-container');
+        const history   = JSON.parse(localStorage.getItem('scanHistory')) || [];
+
+        if (history.length === 0) {
+            container.innerHTML = '<p class="no-history">No scans yet.</p>';
+            return;
+        }
+
+        const rows = history.map(s => {
+            const time  = new Date(s.timestamp).toLocaleTimeString();
+            const badge = s.isValid
+                ? `<span class="badge badge-redeemed">✅ Valid</span>`
+                : `<span class="badge badge-invalid">❌ Invalid</span>`;
+            return `<tr class="${s.isValid ? 'valid-scan':'invalid-scan'}">
+                <td>${time}</td><td>${badge}</td><td>${s.details}</td>
+            </tr>`;
+        }).join('');
+
+        container.innerHTML = `
+            <table class="scan-history-table">
+                <thead><tr><th>Time</th><th>Result</th><th>Details</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    }
+
+});
+</script>
+</body>
+</html>

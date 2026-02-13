@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAU Cafeteria</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="CSS/style.css">
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    <div class="container">
+        <header>
+            <div class="logo-area">
+                <div class="logo-icon">🍽️</div>
+                <div>
+                    <h1>KAU Cafeteria</h1>
+                    <span class="tagline">King Abdulaziz University</span>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <!-- Today's Menu Section -->
+            <section class="menu-section">
+                <h2 class="section-title">Today's Menu</h2>
+                <p class="section-sub" id="today-date"></p>
+                <div id="menu-container" class="menu-grid">
+                    <div class="menu-loading">
+                        <div class="spinner"></div>
+                        <p>Loading today's menu...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Portal Selection -->
+            <section class="portal-selection">
+                <div class="portal-card customer">
+                    <div class="portal-icon">🎓</div>
+                    <h2>Student & Staff Portal</h2>
+                    <p>Buy meal tickets and manage your account</p>
+                    <div class="buttons">
+                        <a href="customer/login.html" class="btn">Login</a>
+                        <a href="customer/signup.html" class="btn secondary">Sign Up</a>
+                    </div>
+                </div>
+                <div class="portal-card worker">
+                    <div class="portal-icon">👷</div>
+                    <h2>Worker Portal</h2>
+                    <p>Scan and validate customer tickets</p>
+                    <div class="buttons">
+                        <a href="worker/login.html" class="btn teal">Login</a>
+                    </div>
+                </div>
+                <div class="portal-card admin">
+                    <div class="portal-icon">⚙️</div>
+                    <h2>Admin Panel</h2>
+                    <p>Update today's menu and manage the cafeteria</p>
+                    <div class="buttons">
+                        <a href="admin/index.html" class="btn gold">Manage Menu</a>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>© 2025 KAU Cafeteria · Restaurant Ticketing System</p>
+        </footer>
+    </div>
+
+    <script type="module">
+        import { MenuAPI } from './JS/menu-api.js';
+        // config is self-contained in menu-api.js
+
+        // Show today's date
+        const today = new Date();
+        document.getElementById('today-date').textContent =
+            today.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+        const dateKey = today.toISOString().split('T')[0];
+
+        async function loadMenu() {
+            const container = document.getElementById('menu-container');
+            try {
+                const data = await MenuAPI.getForDate(dateKey);
+
+                if (data) {
+                    const meals = [
+                        { key:'breakfast', label:'Breakfast', icon:'🌅' },
+                        { key:'lunch',     label:'Lunch',     icon:'☀️' },
+                        { key:'dinner',    label:'Dinner',    icon:'🌙' }
+                    ];
+                    container.innerHTML = meals.map(m => {
+                        const items = data[m.key] || [];
+                        return `
+                            <div class="menu-card">
+                                <div class="menu-card-header">
+                                    <span class="meal-icon">${m.icon}</span>
+                                    <h3>${m.label}</h3>
+                                </div>
+                                <ul class="menu-items">
+                                    ${items.length
+                                        ? items.map(i => `<li>${i}</li>`).join('')
+                                        : '<li class="no-items">Menu not set yet</li>'}
+                                </ul>
+                            </div>`;
+                    }).join('');
+                } else {
+                    container.innerHTML = `<div class="menu-empty"><p>📋 Today's menu hasn't been posted yet. Check back soon!</p></div>`;
+                }
+            } catch {
+                container.innerHTML = `
+                    <div class="menu-empty">
+                        <p>⚠️ Could not load menu. Please check your JSONBin setup.</p>
+                        <p style="font-size:0.85rem;color:#999;margin-top:0.5rem">See SETUP_GUIDE.md for instructions</p>
+                    </div>`;
+            }
+        }
+
+        loadMenu();
+    </script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin – Manage Daily Menu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../CSS/style.css">
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    <div class="container">
+        <header>
+            <div class="logo-area">
+                <div class="logo-icon">⚙️</div>
+                <div>
+                    <h1>Admin Panel</h1>
+                    <span class="tagline">Manage Daily Menu</span>
+                </div>
+            </div>
+            <div class="user-actions">
+                <a href="../index.html" class="btn secondary">← Back to Home</a>
+            </div>
+        </header>
+
+        <main>
+            <div id="alert-container"></div>
+
+            <div class="dashboard-section">
+                <h2>📅 Set Menu for Date</h2>
+                <div class="form-group" style="max-width:220px">
+                    <label for="menu-date">Select Date</label>
+                    <input type="date" id="menu-date">
+                </div>
+                <button class="btn" id="load-menu-btn">Load / Edit This Day's Menu</button>
+            </div>
+
+            <div id="menu-editor" style="display:none">
+                <div class="dashboard-section">
+                    <h2 id="editor-title">Editing Menu</h2>
+                    <div class="admin-grid" id="meals-editor">
+                        <!-- JS builds meal editors here -->
+                    </div>
+                    <div style="margin-top:1.5rem">
+                        <button class="btn" id="save-menu-btn">💾 Save Menu to Firebase</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer><p>© 2025 KAU Cafeteria Admin</p></footer>
+    </div>
+
+    <script type="module">
+        import { MenuAPI } from '../JS/menu-api.js';
+
+        // Set default date to today
+        const todayStr = new Date().toISOString().split('T')[0];
+        document.getElementById('menu-date').value = todayStr;
+
+        const meals = [
+            { key: 'breakfast', label: 'Breakfast', icon: '🌅' },
+            { key: 'lunch',     label: 'Lunch',     icon: '☀️' },
+            { key: 'dinner',    label: 'Dinner',     icon: '🌙' }
+        ];
+
+        let menuData = { breakfast: [], lunch: [], dinner: [] };
+        let currentDateKey = '';
+
+        // ---- Load button ----
+        document.getElementById('load-menu-btn').addEventListener('click', async () => {
+            currentDateKey = document.getElementById('menu-date').value;
+            if (!currentDateKey) { showAlert('Please select a date', 'danger'); return; }
+
+            showAlert('Loading...', 'warning');
+            const existing = await MenuAPI.getForDate(currentDateKey);
+            menuData = existing || { breakfast: [], lunch: [], dinner: [] };
+
+            buildEditor();
+            document.getElementById('editor-title').textContent =
+                `Menu for ${new Date(currentDateKey + 'T12:00:00').toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}`;
+            document.getElementById('menu-editor').style.display = 'block';
+            showAlert('✅ Loaded! Add your dishes below.', 'success');
+        });
+
+        // ---- Build editor UI ----
+        function buildEditor() {
+            const container = document.getElementById('meals-editor');
+            container.innerHTML = meals.map(meal => `
+                <div class="admin-meal-form">
+                    <h3>${meal.icon} ${meal.label}</h3>
+                    <ul class="item-list" id="list-${meal.key}"></ul>
+                    <div class="add-item-row">
+                        <input type="text" id="input-${meal.key}" placeholder="Add a dish (e.g. Rice with chicken)">
+                        <button onclick="addItem('${meal.key}')">+</button>
+                    </div>
+                </div>
+            `).join('');
+            meals.forEach(meal => renderList(meal.key));
+        }
+
+        function renderList(mealKey) {
+            const list  = document.getElementById(`list-${mealKey}`);
+            const items = menuData[mealKey] || [];
+            list.innerHTML = items.length === 0
+                ? '<li style="color:var(--muted);font-size:0.9rem;padding:0.4rem 0">No items yet</li>'
+                : items.map((item, i) => `
+                    <li>
+                        <span>${item}</span>
+                        <button class="remove-item" onclick="removeItem('${mealKey}', ${i})">✕</button>
+                    </li>
+                  `).join('');
+        }
+
+        window.addItem = function(mealKey) {
+            const input = document.getElementById(`input-${mealKey}`);
+            const val   = input.value.trim();
+            if (!val) return;
+            if (!menuData[mealKey]) menuData[mealKey] = [];
+            menuData[mealKey].push(val);
+            input.value = '';
+            renderList(mealKey);
+        };
+
+        window.removeItem = function(mealKey, index) {
+            menuData[mealKey].splice(index, 1);
+            renderList(mealKey);
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target.id.startsWith('input-')) {
+                window.addItem(e.target.id.replace('input-', ''));
+            }
+        });
+
+        // ---- Save button ----
+        document.getElementById('save-menu-btn').addEventListener('click', async () => {
+            showAlert('Saving...', 'warning');
+            const ok = await MenuAPI.saveForDate(currentDateKey, menuData);
+            if (ok) {
+                showAlert('✅ Menu saved! Students can now see it on the homepage.', 'success');
+            } else {
+                showAlert('❌ Error saving. Check your JSONBin API key in JS/jsonbin-config.js', 'danger');
+            }
+        });
+
+        function showAlert(msg, type) {
+            const container = document.getElementById('alert-container');
+            const el = document.createElement('div');
+            el.className = `alert alert-${type}`;
+            el.textContent = msg;
+            container.innerHTML = '';
+            container.appendChild(el);
+            if (type !== 'warning') setTimeout(() => el.remove(), 6000);
+        }
+    </script>
+</body>
+</html>
