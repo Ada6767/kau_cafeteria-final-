@@ -144,7 +144,7 @@
 
         async function loadMenu() {
             const container = document.getElementById('dashboard-menu');
-            const data = await MenuAPI.getForDate(dateKey);
+            const data = await MenuAPI.getForDateWithFallback(dateKey);
             if (data) {
                 const meals = [
                     {key:'breakfast',label:'Breakfast',icon:'🌅'},
